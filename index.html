@@ -142,6 +142,77 @@
     color:var(--nc-gray);
     margin-top:8px;
   }
+  .custom-select{
+    position:relative;
+  }
+  .custom-select-toggle{
+    width:100%;
+    padding:11px 12px;
+    border:2px solid var(--nc-border);
+    border-radius:6px;
+    font-family:"Segoe UI", sans-serif;
+    font-size:14px;
+    color:var(--nc-black);
+    background:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    cursor:pointer;
+    text-align:left;
+  }
+  .custom-select-toggle:focus{
+    outline:none;
+    border-color:var(--nc-red);
+  }
+  .custom-select-chevron{
+    color:var(--nc-gray);
+    margin-left:10px;
+    flex-shrink:0;
+  }
+  .custom-select-panel{
+    display:none;
+    position:absolute;
+    top:calc(100% + 6px);
+    left:0;
+    right:0;
+    background:#fff;
+    border:2px solid var(--nc-border);
+    border-radius:6px;
+    max-height:280px;
+    overflow-y:auto;
+    z-index:30;
+    box-shadow:0 10px 28px rgba(10,1,1,0.14);
+  }
+  .custom-select-panel.open{
+    display:block;
+  }
+  .custom-select-option{
+    padding:12px 14px;
+    border-bottom:1px solid var(--nc-panel);
+    cursor:pointer;
+  }
+  .custom-select-option:last-child{
+    border-bottom:none;
+  }
+  .custom-select-option:hover,
+  .custom-select-option.active{
+    background:var(--nc-panel);
+  }
+  .custom-select-option .branch-id{
+    font-family:"Montserrat", sans-serif;
+    font-weight:700;
+    font-size:15px;
+    color:var(--nc-black);
+  }
+  .custom-select-option .branch-meta{
+    font-family:"Segoe UI", sans-serif;
+    font-size:12.5px;
+    color:var(--nc-gray);
+    margin-top:4px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:4px 16px;
+  }
   .page-loader{
     position:fixed;
     inset:0;
@@ -525,9 +596,9 @@ function escapeHtml(str){
     .replace(/'/g, "&#39;");
 }
 
-async function lookupBranchIdOptions(contact){
+async function lookupBranchOptions(contact){
   const recruitmentUrl = new URL(`${SUPABASE_URL}/rest/v1/recruitment_ccm_accounting`);
-  recruitmentUrl.searchParams.set("select", "branch");
+  recruitmentUrl.searchParams.set("select", "branch,status,created_date,updated_date");
   recruitmentUrl.searchParams.set("contact", `eq.${contact}`);
 
   const recruitmentRes = await fetch(recruitmentUrl.toString(), { headers: supabaseHeaders() });
@@ -536,13 +607,12 @@ async function lookupBranchIdOptions(contact){
   }
   const recruitmentRows = await recruitmentRes.json();
 
-  const branchRefIds = [...new Set(
-    recruitmentRows
-      .map(row => row.branch)
-      .filter(v => v !== null && v !== undefined && String(v).trim().length)
-  )];
+  const validRows = recruitmentRows.filter(row =>
+    row.branch !== null && row.branch !== undefined && String(row.branch).trim().length
+  );
+  if(!validRows.length) return [];
 
-  if(!branchRefIds.length) return [];
+  const branchRefIds = [...new Set(validRows.map(row => row.branch))];
 
   const branchesUrl = new URL(`${SUPABASE_URL}/rest/v1/branches`);
   branchesUrl.searchParams.set("select", "branch_id,whalesync_postgres_id");
@@ -554,30 +624,122 @@ async function lookupBranchIdOptions(contact){
   }
   const branchesRows = await branchesRes.json();
 
-  return [...new Set(
-    branchesRows
-      .map(row => row.branch_id)
-      .filter(v => v !== null && v !== undefined && String(v).trim().length)
-  )];
+  const branchIdByRef = {};
+  branchesRows.forEach(row => {
+    if(row.whalesync_postgres_id !== undefined && row.branch_id !== null && row.branch_id !== undefined){
+      branchIdByRef[row.whalesync_postgres_id] = row.branch_id;
+    }
+  });
+
+  // Dedupe by branch_id, keeping only the most recently updated accounting
+  // record for each branch (falls back to created_date if updated_date is
+  // missing).
+  const recencyOf = (row) => new Date(row.updatedDate || row.createdDate || 0).getTime();
+  const dedupedByBranchId = {};
+
+  validRows.forEach(row => {
+    const branchId = branchIdByRef[row.branch];
+    if(branchId === undefined || branchId === null || !String(branchId).trim().length) return;
+
+    const candidate = {
+      branchId: String(branchId),
+      status: row.status || null,
+      createdDate: row.created_date || null,
+      updatedDate: row.updated_date || null
+    };
+
+    const existing = dedupedByBranchId[candidate.branchId];
+    if(!existing || recencyOf(candidate) > recencyOf(existing)){
+      dedupedByBranchId[candidate.branchId] = candidate;
+    }
+  });
+
+  return Object.values(dedupedByBranchId).sort((a, b) => recencyOf(b) - recencyOf(a));
 }
+
+function formatLookupDate(value){
+  if(!value) return "N/A";
+  const d = new Date(value);
+  if(isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+let branchDropdownActive = false;
 
 function renderBranchDropdown(options){
   const wrapper = document.getElementById("branchFieldWrapper");
   if(!wrapper) return;
 
-  const optionsHtml = options.map(opt =>
-    `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`
-  ).join("");
+  const optionRows = options.map(opt => `
+    <div class="custom-select-option" data-value="${escapeHtml(opt.branchId)}" role="option" tabindex="0">
+      <div class="branch-id">${escapeHtml(opt.branchId)}</div>
+      <div class="branch-meta">
+        <span>Status: ${escapeHtml(opt.status || "N/A")}</span>
+        <span>Requested Date: ${escapeHtml(formatLookupDate(opt.createdDate))}</span>
+        <span>Last Update: ${escapeHtml(formatLookupDate(opt.updatedDate))}</span>
+      </div>
+    </div>
+  `).join("");
 
-  wrapper.innerHTML =
-    `<select id="branch" name="branch" required>` +
-    (options.length > 1 ? `<option value="">Select branch...</option>` : "") +
-    optionsHtml +
-    `</select>`;
+  wrapper.innerHTML = `
+    <div class="custom-select" id="branchCustomSelect">
+      <input type="hidden" id="branch" name="branch" />
+      <button type="button" class="custom-select-toggle" id="branchToggle" aria-haspopup="listbox" aria-expanded="false">
+        <span id="branchToggleLabel">Select branch...</span>
+        <span class="custom-select-chevron">&#9662;</span>
+      </button>
+      <div class="custom-select-panel" id="branchPanel" role="listbox">
+        ${optionRows}
+      </div>
+    </div>
+  `;
+
+  const customSelect = document.getElementById("branchCustomSelect");
+  const toggle = document.getElementById("branchToggle");
+  const toggleLabel = document.getElementById("branchToggleLabel");
+  const panel = document.getElementById("branchPanel");
+  const hiddenInput = document.getElementById("branch");
+
+  function closePanel(){
+    panel.classList.remove("open");
+    toggle.setAttribute("aria-expanded", "false");
+  }
+  function openPanel(){
+    panel.classList.add("open");
+    toggle.setAttribute("aria-expanded", "true");
+  }
+
+  toggle.addEventListener("click", function(e){
+    e.stopPropagation();
+    if(panel.classList.contains("open")){ closePanel(); } else { openPanel(); }
+  });
+
+  panel.querySelectorAll(".custom-select-option").forEach(function(optionEl){
+    optionEl.addEventListener("click", function(){
+      const value = optionEl.getAttribute("data-value");
+      hiddenInput.value = value;
+      toggleLabel.textContent = value;
+      panel.querySelectorAll(".custom-select-option").forEach(function(el){ el.classList.remove("active"); });
+      optionEl.classList.add("active");
+      closePanel();
+    });
+  });
+
+  document.addEventListener("click", function(e){
+    if(!customSelect.contains(e.target)) closePanel();
+  });
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape") closePanel();
+  });
 
   if(options.length === 1){
-    document.getElementById("branch").value = options[0];
+    hiddenInput.value = options[0].branchId;
+    toggleLabel.textContent = options[0].branchId;
+    const onlyOption = panel.querySelector(".custom-select-option");
+    if(onlyOption) onlyOption.classList.add("active");
   }
+
+  branchDropdownActive = true;
 }
 
 async function initBranchLookup(){
@@ -585,7 +747,7 @@ async function initBranchLookup(){
 
   const noteEl = document.getElementById("branchLookupNote");
   try{
-    const options = await lookupBranchIdOptions(URL_CONTACT);
+    const options = await lookupBranchOptions(URL_CONTACT);
     if(options.length){
       renderBranchDropdown(options);
     }
@@ -922,6 +1084,10 @@ document.getElementById("submitBtn").addEventListener("click", async function(){
   const form = document.getElementById("preDeployForm");
   if(!form.checkValidity()){
     form.reportValidity();
+    return;
+  }
+  if(branchDropdownActive && !val("branch")){
+    document.getElementById("statusMsg").textContent = "Please select a branch.";
     return;
   }
   if(!getRadioValue("sharedDriveAccess")){
