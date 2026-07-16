@@ -601,28 +601,36 @@ async function lookupBranchOptions(contact){
   recruitmentUrl.searchParams.set("select", "branch,status,created_date,updated_date");
   recruitmentUrl.searchParams.set("contact", `eq.${contact}`);
 
+  console.log("[branch lookup] querying recruitment_ccm_accounting:", recruitmentUrl.toString());
   const recruitmentRes = await fetch(recruitmentUrl.toString(), { headers: supabaseHeaders() });
   if(!recruitmentRes.ok){
     throw new Error(`recruitment_ccm_accounting lookup failed with status ${recruitmentRes.status}`);
   }
   const recruitmentRows = await recruitmentRes.json();
+  console.log("[branch lookup] recruitment_ccm_accounting rows:", recruitmentRows);
 
   const validRows = recruitmentRows.filter(row =>
     row.branch !== null && row.branch !== undefined && String(row.branch).trim().length
   );
-  if(!validRows.length) return [];
+  if(!validRows.length){
+    console.log("[branch lookup] no rows with a non-empty branch reference -- stopping here.");
+    return [];
+  }
 
   const branchRefIds = [...new Set(validRows.map(row => row.branch))];
+  console.log("[branch lookup] distinct branch reference ids:", branchRefIds);
 
   const branchesUrl = new URL(`${SUPABASE_URL}/rest/v1/branches`);
   branchesUrl.searchParams.set("select", "branch_id,whalesync_postgres_id");
   branchesUrl.searchParams.set("whalesync_postgres_id", `in.(${branchRefIds.map(id => `"${id}"`).join(",")})`);
 
+  console.log("[branch lookup] querying branches:", branchesUrl.toString());
   const branchesRes = await fetch(branchesUrl.toString(), { headers: supabaseHeaders() });
   if(!branchesRes.ok){
     throw new Error(`branches lookup failed with status ${branchesRes.status}`);
   }
   const branchesRows = await branchesRes.json();
+  console.log("[branch lookup] branches rows:", branchesRows);
 
   const branchIdByRef = {};
   branchesRows.forEach(row => {
@@ -748,8 +756,13 @@ async function initBranchLookup(){
   const noteEl = document.getElementById("branchLookupNote");
   try{
     const options = await lookupBranchOptions(URL_CONTACT);
+    console.log("[branch lookup] final resolved branch options:", options);
     if(options.length){
       renderBranchDropdown(options);
+    } else if(noteEl){
+      noteEl.classList.add("lookup-status");
+      noteEl.style.display = "block";
+      noteEl.textContent = "No matching branch records were found for this contact. Please enter the branch manually.";
     }
   }catch(err){
     console.error("Branch lookup failed, falling back to free text entry:", err);
