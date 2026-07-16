@@ -79,6 +79,12 @@
     line-height:1.5;
   }
   .intro strong{ color:var(--nc-black); }
+  .required-legend{
+    font-family:"Segoe UI", sans-serif;
+    font-size:13px;
+    color:var(--nc-gray);
+    margin:0 0 20px;
+  }
   form{
     background:#ffffff;
     border-radius:10px;
@@ -95,6 +101,10 @@
     font-size:15px;
     color:var(--nc-black);
     margin-bottom:4px;
+  }
+  .required-mark{
+    color:var(--nc-red);
+    font-weight:700;
   }
   .field .hint{
     font-family:"Georgia", serif;
@@ -173,7 +183,7 @@
     transition:opacity .15s ease;
   }
   button:hover{ opacity:0.88; }
-  #generateBtn{
+  #submitBtn{
     background:var(--nc-red);
     color:#fff;
   }
@@ -265,42 +275,43 @@
     auto-populates a formatted <strong>Pre-Deployment Form PDF</strong> for your records, matching
     NightOwl Consulting's standard intake document.
   </p>
+  <p class="required-legend"><span class="required-mark">*</span> Required field</p>
 
   <form id="preDeployForm">
 
     <div class="field">
-      <label for="jobTitle">1. Position / Job Title</label>
+      <label for="jobTitle">1. Position / Job Title <span class="required-mark">*</span></label>
       <div class="hint">Please provide the job title of the new hire</div>
       <input type="text" id="jobTitle" name="jobTitle" required />
     </div>
 
     <div class="field">
-      <label for="branch">2. Branch Name / Branch ID (or Cost Center if applicable)</label>
+      <label for="branch">2. Branch Name / Branch ID (or Cost Center if applicable) <span class="required-mark">*</span></label>
       <div class="hint">For NOC's billing purposes</div>
       <input type="text" id="branch" name="branch" required />
     </div>
 
     <div class="field">
-      <label for="manager">3. Direct Manager</label>
+      <label for="manager">3. Direct Manager <span class="required-mark">*</span></label>
       <div class="hint">Who will be the direct manager of the new hire?</div>
       <input type="text" id="manager" name="manager" required />
     </div>
 
     <div class="field">
-      <label for="checkIn">4. Management Team Check-In</label>
+      <label for="checkIn">4. Management Team Check-In <span class="required-mark">*</span></label>
       <div class="hint">Please provide your preferred day &amp; time for a recurring check-in with our Management Team. Please indicate if you prefer to do it monthly or bi-weekly.</div>
       <input type="text" id="checkIn" name="checkIn" placeholder="e.g. First Monday of the month, 10:00 AM PST, monthly" required />
       <div class="note">**This is for you and NOC management to meet regularly to discuss how things are going. The goal of the meeting is to gain feedback regarding work progress, ideas, and any areas the employee needs to focus on or improve.</div>
     </div>
 
     <div class="field">
-      <label for="workshift">5. Workshift &amp; Time zone</label>
+      <label for="workshift">5. Workshift &amp; Time zone <span class="required-mark">*</span></label>
       <div class="hint">Please specify what schedule and time zone you want our new hire to support you in, i.e. 8am - 5pm PST; 9am - 6pm EST, etc.</div>
       <input type="text" id="workshift" name="workshift" required />
     </div>
 
     <div class="field">
-      <label>6. Shared Drive Access</label>
+      <label>6. Shared Drive Access <span class="required-mark">*</span></label>
       <div class="hint">Will you grant your new hire access to your Team's Shared Drive?</div>
       <div class="radio-row">
         <label class="radio-option"><input type="radio" name="sharedDriveAccess" value="Yes" required /> Yes</label>
@@ -311,7 +322,7 @@
     </div>
 
     <div class="field">
-      <label for="sharedDriveLocation">7. Shared Drive (Location)</label>
+      <label for="sharedDriveLocation">7. Shared Drive (Location) <span class="required-mark" id="sharedDriveLocationRequiredMark" style="display:none;">*</span></label>
       <div class="hint">If yes to the above, please specify the exact path/location so we can request access for the new hire</div>
       <input type="text" id="sharedDriveLocation" name="sharedDriveLocation" />
     </div>
@@ -319,36 +330,36 @@
     <hr class="section-divider" />
 
     <div class="field">
-      <label>8. RingCentral or 3CX</label>
+      <label>8. RingCentral or 3CX <span class="required-mark">*</span></label>
       <div class="hint">Do you want your employee to have a RingCentral? If yes, this will be billed to your branch.</div>
       <div class="radio-row">
         <label class="radio-option"><input type="radio" name="ringCentral" value="Yes, Please subscribe for a RingCentral Account" required /> Yes, subscribe</label>
         <label class="radio-option"><input type="radio" name="ringCentral" value="No, RingCentral is not applicable for this role" /> No, not applicable</label>
       </div>
       <div class="radio-row">
-        <span style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:14px;">Area Code:</span>
+        <span style="font-family:'Montserrat',sans-serif;font-weight:700;font-size:14px;">Area Code: <span class="required-mark" id="areaCodeRequiredMark" style="display:none;">*</span></span>
         <input type="text" id="areaCode" class="inline-input" placeholder="e.g. 415" />
       </div>
     </div>
 
     <div class="field">
-      <label for="otherSystems">9. List of other Systems</label>
+      <label for="otherSystems">9. List of other Systems <span class="required-mark">*</span></label>
       <div class="hint">If there are any other systems or software that the new hire will need, please type below.</div>
-      <textarea id="otherSystems" name="otherSystems" rows="3"></textarea>
+      <textarea id="otherSystems" name="otherSystems" rows="3" required></textarea>
     </div>
 
     <div class="field">
-      <label for="states">10. Please indicate the states where you expect the new hire to process loans. (if applicable)</label>
-      <input type="text" id="states" name="states" />
+      <label for="states">10. Please indicate the states where you expect the new hire to process loans. (if applicable) <span class="required-mark">*</span></label>
+      <input type="text" id="states" name="states" required />
     </div>
 
     <div class="field">
-      <label for="itSupport">11. Please provide your IT Support contact information (name and email) that we can reach out to for setup and escalations regarding client-provided access/application issues.</label>
+      <label for="itSupport">11. Please provide your IT Support contact information (name and email) that we can reach out to for setup and escalations regarding client-provided access/application issues. <span class="required-mark">*</span></label>
       <input type="text" id="itSupport" name="itSupport" required />
     </div>
 
     <div class="field">
-      <label for="invoicing">12. Invoicing (To who/what email should we send invoices and payment links?)</label>
+      <label for="invoicing">12. Invoicing (To who/what email should we send invoices and payment links?) <span class="required-mark">*</span></label>
       <input type="email" id="invoicing" name="invoicing" required />
     </div>
 
@@ -798,6 +809,32 @@ document.getElementById("resetBtn").addEventListener("click", function(){
   document.getElementById("preDeployForm").reset();
   document.getElementById("statusMsg").textContent = "Form cleared.";
 });
+
+function updateConditionalRequired(){
+  const sharedDriveLocationInput = document.getElementById("sharedDriveLocation");
+  const sharedDriveLocationMark = document.getElementById("sharedDriveLocationRequiredMark");
+  const driveLocationRequired = getRadioValue("sharedDriveAccess") === "Yes";
+  sharedDriveLocationInput.required = driveLocationRequired;
+  sharedDriveLocationMark.style.display = driveLocationRequired ? "inline" : "none";
+
+  const areaCodeInput = document.getElementById("areaCode");
+  const areaCodeMark = document.getElementById("areaCodeRequiredMark");
+  const areaCodeRequired = getRadioValue("ringCentral") === "Yes, Please subscribe for a RingCentral Account";
+  areaCodeInput.required = areaCodeRequired;
+  areaCodeMark.style.display = areaCodeRequired ? "inline" : "none";
+}
+
+document.getElementsByName("sharedDriveAccess").forEach(function(radio){
+  radio.addEventListener("change", updateConditionalRequired);
+});
+document.getElementsByName("ringCentral").forEach(function(radio){
+  radio.addEventListener("change", updateConditionalRequired);
+});
+document.getElementById("preDeployForm").addEventListener("reset", function(){
+  setTimeout(updateConditionalRequired, 0);
+});
+updateConditionalRequired();
+
 </script>
 
 </body>
