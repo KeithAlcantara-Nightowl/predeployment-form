@@ -728,14 +728,17 @@ function collectFormData(){
   };
 }
 
-async function sendToWebhook(blob, filename){
-  const formData = new FormData();
-  formData.append("file", blob, filename);
-  formData.append("formData", JSON.stringify(collectFormData()));
+async function sendToWebhook(doc, filename){
+  const payload = {
+    filename: filename,
+    fileBase64: doc.output("datauristring").split(",")[1],
+    ...collectFormData()
+  };
 
   const response = await fetch(WEBHOOK_URL, {
     method: "POST",
-    body: formData
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
   });
 
   if(!response.ok){
@@ -780,7 +783,7 @@ document.getElementById("submitBtn").addEventListener("click", async function(){
 
   let webhookFailed = false;
   try{
-    await sendToWebhook(blob, filename);
+    await sendToWebhook(doc, filename);
   }catch(err){
     console.error("Webhook delivery failed:", err);
     webhookFailed = true;
