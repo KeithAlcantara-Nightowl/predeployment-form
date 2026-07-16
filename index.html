@@ -338,6 +338,9 @@
     font-weight:700;
     margin:0 auto 18px;
   }
+  .confirmation-icon.block-icon{
+    background:var(--nc-black);
+  }
   .confirmation-title{
     font-family:"Montserrat", sans-serif;
     font-weight:800;
@@ -496,6 +499,12 @@
     <div class="status" id="downloadStatus"></div>
   </div>
 
+  <div class="confirmation-panel" id="accountingBlockPanel">
+    <div class="confirmation-icon block-icon">!</div>
+    <div class="confirmation-title">No Accounting Approval Found</div>
+    <div class="confirmation-sub">We couldn't find an accounting approval record for this contact under Cross Country Mortgage. Please reach out to NOC Accounting before this Pre-Deployment Form can be submitted.</div>
+  </div>
+
   <footer>NightOwl Consulting Philippines Inc. - Pre-Deployment Form</footer>
 </main>
 
@@ -609,12 +618,17 @@ async function lookupBranchOptions(contact){
   const recruitmentRows = await recruitmentRes.json();
   console.log("[branch lookup] recruitment_ccm_accounting rows:", recruitmentRows);
 
+  if(!recruitmentRows.length){
+    console.log("[branch lookup] no accounting record at all for this contact -- blocking.");
+    return { accountingFound: false, options: [] };
+  }
+
   const validRows = recruitmentRows.filter(row =>
     row.branch !== null && row.branch !== undefined && String(row.branch).trim().length
   );
   if(!validRows.length){
-    console.log("[branch lookup] no rows with a non-empty branch reference -- stopping here.");
-    return [];
+    console.log("[branch lookup] accounting record(s) found but none have a branch reference -- falling back to free text.");
+    return { accountingFound: true, options: [] };
   }
 
   const branchRefIds = [...new Set(validRows.map(row => row.branch))];
@@ -662,7 +676,10 @@ async function lookupBranchOptions(contact){
     }
   });
 
-  return Object.values(dedupedByBranchId).sort((a, b) => recencyOf(b) - recencyOf(a));
+  return {
+    accountingFound: true,
+    options: Object.values(dedupedByBranchId).sort((a, b) => recencyOf(b) - recencyOf(a))
+  };
 }
 
 function formatLookupDate(value){
@@ -750,13 +767,30 @@ function renderBranchDropdown(options){
   branchDropdownActive = true;
 }
 
+function blockAccountingNotFound(){
+  const form = document.getElementById("preDeployForm");
+  if(form) form.style.display = "none";
+  const intro = document.querySelector(".intro");
+  if(intro) intro.style.display = "none";
+  const legend = document.querySelector(".required-legend");
+  if(legend) legend.style.display = "none";
+  const panel = document.getElementById("accountingBlockPanel");
+  if(panel) panel.classList.add("visible");
+}
+
 async function initBranchLookup(){
   if(URL_COMPANY !== "Cross Country Mortgage" || !URL_CONTACT) return;
 
   const noteEl = document.getElementById("branchLookupNote");
   try{
-    const options = await lookupBranchOptions(URL_CONTACT);
-    console.log("[branch lookup] final resolved branch options:", options);
+    const { accountingFound, options } = await lookupBranchOptions(URL_CONTACT);
+    console.log("[branch lookup] accountingFound:", accountingFound, "options:", options);
+
+    if(!accountingFound){
+      blockAccountingNotFound();
+      return;
+    }
+
     if(options.length){
       renderBranchDropdown(options);
     } else if(noteEl){
