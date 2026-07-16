@@ -55,6 +55,7 @@
     flex-direction:column;
     gap:4px;
     z-index:1;
+    margin-left:28px;
   }
   .brand-subtitle{
     font-family:"Montserrat", sans-serif;
@@ -485,7 +486,7 @@ function drawHeader(doc, pageW){
   doc.setFont("MontserratExtraBold", "normal");
   doc.setFontSize(20);
   doc.setTextColor(...NC_BLACK);
-  doc.text("PRE-DEPLOYMENT FORM", 60, 42);
+  doc.text("PRE-DEPLOYMENT FORM", 78, 42);
 
   const label = buildFormLabel();
   let dividerY = 58;
@@ -493,7 +494,7 @@ function drawHeader(doc, pageW){
     doc.setFont("Montserrat", "bold");
     doc.setFontSize(11);
     doc.setTextColor(...NC_GRAY);
-    doc.text(label, 60, 56);
+    doc.text(label, 78, 56);
     dividerY = 70;
   }
 
