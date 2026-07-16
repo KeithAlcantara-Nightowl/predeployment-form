@@ -122,7 +122,7 @@
     margin-top:6px;
     line-height:1.4;
   }
-  input[type="text"], input[type="email"], textarea{
+  input[type="text"], input[type="email"], textarea, select{
     width:100%;
     padding:11px 12px;
     border:2px solid var(--nc-border);
@@ -133,9 +133,47 @@
     background:#fff;
     resize:vertical;
   }
-  input[type="text"]:focus, input[type="email"]:focus, textarea:focus{
+  input[type="text"]:focus, input[type="email"]:focus, textarea:focus, select:focus{
     outline:none;
     border-color:var(--nc-red);
+  }
+  .note.lookup-status{
+    font-style:normal;
+    color:var(--nc-gray);
+    margin-top:8px;
+  }
+  .page-loader{
+    position:fixed;
+    inset:0;
+    background:var(--nc-off-white);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:18px;
+    z-index:9999;
+    transition:opacity 0.25s ease;
+  }
+  .page-loader.hidden{
+    opacity:0;
+    pointer-events:none;
+  }
+  .loader-spinner{
+    width:44px;
+    height:44px;
+    border-radius:50%;
+    border:4px solid var(--nc-border);
+    border-top-color:var(--nc-red);
+    animation:nc-spin 0.8s linear infinite;
+  }
+  .loader-text{
+    font-family:"Montserrat", sans-serif;
+    font-weight:700;
+    font-size:14px;
+    color:var(--nc-gray);
+  }
+  @keyframes nc-spin{
+    to{ transform:rotate(360deg); }
   }
   .radio-row{
     display:flex;
@@ -262,6 +300,11 @@
 </head>
 <body>
 
+<div id="pageLoader" class="page-loader">
+  <div class="loader-spinner"></div>
+  <div class="loader-text">Loading form...</div>
+</div>
+
 <header>
   <div class="header-titles">
     <div class="brand-title">PRE-DEPLOYMENT FORM</div>
@@ -289,7 +332,10 @@
     <div class="field">
       <label for="branch">2. Branch Name / Branch ID (or Cost Center if applicable) <span class="required-mark">*</span></label>
       <div class="hint">For NOC's billing purposes</div>
-      <input type="text" id="branch" name="branch" required />
+      <div id="branchFieldWrapper">
+        <input type="text" id="branch" name="branch" required />
+      </div>
+      <div class="note" id="branchLookupNote" style="display:none;"></div>
     </div>
 
     <div class="field">
@@ -450,6 +496,121 @@ function buildFormLabel(){
   const confirmationTitleEl = document.getElementById("confirmationTitle");
   if(confirmationTitleEl){
     confirmationTitleEl.textContent = `${label} submitted`;
+  }
+})();
+
+// --- Branch lookup for Cross Country Mortgage contacts ---------------------
+// If Company (from the URL) is exactly "Cross Country Mortgage", look up the
+// Contact in Supabase's recruitment_ccm_accounting table, resolve the
+// matched branch reference(s) against the branches table, and turn Q2 into
+// a dropdown of the resulting branch_id values. Any mismatch, empty result,
+// or API failure leaves Q2 as the original free-text field.
+const SUPABASE_URL = "https://supabase-u42977.vm.elestio.app";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzQ2MDI1NDQ5LCJleHAiOjIwNjEzODU0NDl9.nxD3gFbhcsN5O8a5wSMezAl2C7mh2UjQD5adNOJ2MeM";
+
+function supabaseHeaders(){
+  return {
+    apikey: SUPABASE_ANON_KEY,
+    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    Accept: "application/json"
+  };
+}
+
+function escapeHtml(str){
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+async function lookupBranchIdOptions(contact){
+  const recruitmentUrl = new URL(`${SUPABASE_URL}/rest/v1/recruitment_ccm_accounting`);
+  recruitmentUrl.searchParams.set("select", "branch");
+  recruitmentUrl.searchParams.set("contact", `eq.${contact}`);
+
+  const recruitmentRes = await fetch(recruitmentUrl.toString(), { headers: supabaseHeaders() });
+  if(!recruitmentRes.ok){
+    throw new Error(`recruitment_ccm_accounting lookup failed with status ${recruitmentRes.status}`);
+  }
+  const recruitmentRows = await recruitmentRes.json();
+
+  const branchRefIds = [...new Set(
+    recruitmentRows
+      .map(row => row.branch)
+      .filter(v => v !== null && v !== undefined && String(v).trim().length)
+  )];
+
+  if(!branchRefIds.length) return [];
+
+  const branchesUrl = new URL(`${SUPABASE_URL}/rest/v1/branches`);
+  branchesUrl.searchParams.set("select", "branch_id,whalesync_postgres_id");
+  branchesUrl.searchParams.set("whalesync_postgres_id", `in.(${branchRefIds.map(id => `"${id}"`).join(",")})`);
+
+  const branchesRes = await fetch(branchesUrl.toString(), { headers: supabaseHeaders() });
+  if(!branchesRes.ok){
+    throw new Error(`branches lookup failed with status ${branchesRes.status}`);
+  }
+  const branchesRows = await branchesRes.json();
+
+  return [...new Set(
+    branchesRows
+      .map(row => row.branch_id)
+      .filter(v => v !== null && v !== undefined && String(v).trim().length)
+  )];
+}
+
+function renderBranchDropdown(options){
+  const wrapper = document.getElementById("branchFieldWrapper");
+  if(!wrapper) return;
+
+  const optionsHtml = options.map(opt =>
+    `<option value="${escapeHtml(opt)}">${escapeHtml(opt)}</option>`
+  ).join("");
+
+  wrapper.innerHTML =
+    `<select id="branch" name="branch" required>` +
+    (options.length > 1 ? `<option value="">Select branch...</option>` : "") +
+    optionsHtml +
+    `</select>`;
+
+  if(options.length === 1){
+    document.getElementById("branch").value = options[0];
+  }
+}
+
+async function initBranchLookup(){
+  if(URL_COMPANY !== "Cross Country Mortgage" || !URL_CONTACT) return;
+
+  const noteEl = document.getElementById("branchLookupNote");
+  try{
+    const options = await lookupBranchIdOptions(URL_CONTACT);
+    if(options.length){
+      renderBranchDropdown(options);
+    }
+  }catch(err){
+    console.error("Branch lookup failed, falling back to free text entry:", err);
+    if(noteEl){
+      noteEl.classList.add("lookup-status");
+      noteEl.style.display = "block";
+      noteEl.textContent = "We couldn't look up your branch automatically. Please enter it manually.";
+    }
+  }
+}
+
+function hidePageLoader(){
+  const loader = document.getElementById("pageLoader");
+  if(!loader) return;
+  loader.classList.add("hidden");
+  setTimeout(() => loader.remove(), 300);
+}
+
+(async function initPage(){
+  try{
+    await initBranchLookup();
+  } finally {
+    hidePageLoader();
   }
 })();
 
